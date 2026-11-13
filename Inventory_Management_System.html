@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Inventory Management System</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#f3f6fb;color:#1f2937;font-family:Arial,sans-serif}
+header{background:#172554;color:white;padding:26px 5%}header h1{margin:0 0 8px}header p{margin:0;color:#cbd5e1}
+main{max-width:1100px;margin:28px auto;padding:0 18px}.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:15px;margin-bottom:20px}
+.stats article,.panel{background:white;border-radius:12px;padding:20px;box-shadow:0 3px 14px #0f172a0d}
+.stats span{display:block;color:#64748b}.stats strong{display:block;font-size:30px;color:#1d4ed8;margin-top:8px}
+h2{margin:0 0 18px}.heading{display:flex;justify-content:space-between;align-items:center;gap:12px}
+form{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;align-items:end;margin-bottom:20px}
+label{font-size:13px;color:#475569}input{width:100%;padding:11px;border:1px solid #cbd5e1;border-radius:7px;margin-top:6px}
+button{border:0;border-radius:7px;padding:11px 14px;background:#2563eb;color:white;font-weight:bold;cursor:pointer}
+.secondary{background:#e2e8f0;color:#1e293b}.delete{background:#dc2626}.hidden{display:none}
+.toolbar{display:flex;justify-content:space-between;align-items:center;margin:12px 0;color:#64748b;font-size:13px}.toolbar input{max-width:350px;margin:0}
+.table-wrap{overflow-x:auto}table{width:100%;border-collapse:collapse;min-width:650px}th,td{text-align:left;padding:12px 9px;border-bottom:1px solid #e2e8f0;font-size:14px}th{background:#f8fafc}
+.status{display:inline-block;padding:5px 9px;border-radius:20px;font-size:12px;font-weight:bold}.good{background:#dcfce7;color:#166534}.low{background:#fee2e2;color:#991b1b}
+.actions{display:flex;gap:6px}.actions button{padding:7px 9px;font-size:12px}.note{font-size:12px;color:#64748b;margin-top:16px}
+@media(max-width:700px){.stats{grid-template-columns:1fr}form{grid-template-columns:1fr 1fr}}@media(max-width:430px){form{grid-template-columns:1fr}.heading{align-items:flex-start;flex-direction:column}}
+</style>
+</head>
+<body>
+<header><h1>Inventory Management System</h1><p>Manage products and monitor stock in one place</p></header>
+<main>
+<section class="stats">
+<article><span>Total Products</span><strong id="totalProducts">0</strong></article>
+<article><span>Total Units in Stock</span><strong id="totalUnits">0</strong></article>
+<article><span>Low Stock Items</span><strong id="lowStock">0</strong></article>
+</section>
+<section class="panel">
+<div class="heading"><h2>Product Inventory</h2><button id="exportBtn" class="secondary">Export CSV</button></div>
+<form id="productForm">
+<input type="hidden" id="editId">
+<label>Product name<input id="name" required maxlength="80" placeholder="Wireless Mouse"></label>
+<label>Category<input id="category" required maxlength="50" placeholder="Electronics"></label>
+<label>Quantity<input id="quantity" type="number" min="0" required placeholder="0"></label>
+<label>Unit price (₹)<input id="price" type="number" min="0" step="0.01" required placeholder="0.00"></label>
+<button type="submit" id="saveBtn">Add Product</button><button type="button" id="cancelBtn" class="secondary hidden">Cancel</button>
+</form>
+<div class="toolbar"><input id="search" placeholder="Search product or category..."><span id="resultCount"></span></div>
+<div class="table-wrap"><table><thead><tr><th>Product</th><th>Category</th><th>Quantity</th><th>Unit Price</th><th>Status</th><th>Actions</th></tr></thead><tbody id="inventoryBody"></tbody></table></div>
+<p class="note">Low stock means 5 units or fewer. Data is saved in this browser using local storage.</p>
+</section>
+</main>
+<script>
+const KEY="inventory-management-products";
+let products=JSON.parse(localStorage.getItem(KEY)||"[]");
+const $=id=>document.getElementById(id);
+const fields={id:$("editId"),name:$("name"),category:$("category"),quantity:$("quantity"),price:$("price")};
+function save(){localStorage.setItem(KEY,JSON.stringify(products));render()}
+function resetForm(){$("productForm").reset();fields.id.value="";$("saveBtn").textContent="Add Product";$("cancelBtn").classList.add("hidden")}
+$("productForm").addEventListener("submit",e=>{
+ e.preventDefault();
+ const p={id:fields.id.value||(crypto.randomUUID?crypto.randomUUID():String(Date.now())),name:fields.name.value.trim(),category:fields.category.value.trim(),quantity:Number(fields.quantity.value),price:Number(fields.price.value)};
+ if(!p.name||!p.category||p.quantity<0||p.price<0)return;
+ const i=products.findIndex(x=>x.id===p.id);if(i>=0)products[i]=p;else products.push(p);
+ resetForm();save();
+});
+$("cancelBtn").addEventListener("click",resetForm);$("search").addEventListener("input",render);
+function editProduct(id){const p=products.find(x=>x.id===id);if(!p)return;fields.id.value=p.id;fields.name.value=p.name;fields.category.value=p.category;fields.quantity.value=p.quantity;fields.price.value=p.price;$("saveBtn").textContent="Update Product";$("cancelBtn").classList.remove("hidden");fields.name.focus()}
+function deleteProduct(id){const p=products.find(x=>x.id===id);if(p&&confirm('Delete "'+p.name+'" from inventory?')){products=products.filter(x=>x.id!==id);save()}}
+function render(){
+ const q=$("search").value.toLowerCase().trim(),shown=products.filter(p=>p.name.toLowerCase().includes(q)||p.category.toLowerCase().includes(q));
+ $("totalProducts").textContent=products.length;$("totalUnits").textContent=products.reduce((s,p)=>s+p.quantity,0);$("lowStock").textContent=products.filter(p=>p.quantity<=5).length;$("resultCount").textContent=shown.length+" item(s)";
+ const body=$("inventoryBody");body.replaceChildren();
+ if(!shown.length){const r=body.insertRow(),c=r.insertCell();c.colSpan=6;c.textContent=products.length?"No matching products found.":"No products yet. Add your first product above.";c.style.textAlign="center";return}
+ shown.forEach(p=>{
+  const r=body.insertRow();[p.name,p.category,p.quantity,"₹"+p.price.toFixed(2)].forEach(v=>r.insertCell().textContent=v);
+  const status=document.createElement("span");status.className="status "+(p.quantity<=5?"low":"good");status.textContent=p.quantity<=5?"Low Stock":"In Stock";r.insertCell().append(status);
+  const a=r.insertCell();a.className="actions";const edit=document.createElement("button");edit.className="secondary";edit.textContent="Edit";edit.onclick=()=>editProduct(p.id);
+  const del=document.createElement("button");del.className="delete";del.textContent="Delete";del.onclick=()=>deleteProduct(p.id);a.append(edit,del);
+ });
+}
+$("exportBtn").addEventListener("click",()=>{
+ const rows=[["Product","Category","Quantity","Unit Price (INR)"],...products.map(p=>[p.name,p.category,p.quantity,p.price])];
+ const csv=rows.map(row=>row.map(v=>'"'+String(v).replaceAll('"','""')+'"').join(",")).join("\n");
+ const url=URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8"}));const a=document.createElement("a");a.href=url;a.download="inventory.csv";a.click();URL.revokeObjectURL(url);
+});
+render();
+</script>
+</body></html>
